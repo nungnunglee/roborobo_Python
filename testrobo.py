@@ -6,10 +6,10 @@ from moveFunc import *
 rs = RobokitRS.RobokitRS()
 
 # windows port number
-# rs.port_open("COM3")
+rs.port_open("COM5")
 
 # linux port number
-rs.port_open("/dev/ttyUSB0")
+# rs.port_open("/dev/ttyUSB0")
 
 # 초음파 센서 입력 버퍼 열기
 rs.sonar_begin(2)

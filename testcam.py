@@ -3,7 +3,7 @@ import cv2, numpy as np
 
 
 # 현재 카메라에 비치는 화면을 이미지로 가져오는 함수
-def get_robo_image():
+def get_robo_image(q):
     url = 'http://192.168.4.1:81/stream'
     s = urllib.request.urlopen(url)
     bytes = b''
@@ -15,7 +15,9 @@ def get_robo_image():
 
             if a != -1 and b != -1:
                 jpg = bytes[a:b + 2]
-                return cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                # return cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                q.put(cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR))
+                return
             # 240, 320, 3
         except Exception as e:
             print("STREAM : ", e)
