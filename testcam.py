@@ -15,7 +15,6 @@ def get_robo_image(q):
 
             if a != -1 and b != -1:
                 jpg = bytes[a:b + 2]
-                # return cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
                 q.put(cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR))
                 return
             # 240, 320, 3
