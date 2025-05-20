@@ -95,6 +95,47 @@ def line_action(rs, frame, sensor, params):
         forward(rs, 8)
 
 
+def get_load_region(image: np.ndarray, inrange_upper: tuple = (40, 255, 255), inrange_lower: tuple = (10, 0, 10), canny_threshold: tuple = (100, 200), kernel_size: tuple = (5, 5), dilate_iterations: int = 1, erode_iterations: int = 1):
+    """
+    영상에서 길 영역을 찾아 반환하는 함수\n
+    inRange 함수를 사용하여 색상 영역을 대충 찾아 fill point를 찾고, \n
+    Canny로 엣지를 검출한 사진에 fill point로\n
+    flood fill 함수를 사용하여 길 영역을 찾아 반환한다.\n
+    Args:\n
+        image: 영상\n
+        inrange_upper: 길 영역 색상의 상한 값 (HSV)\n
+        inrange_lower: 길 영역 색상의 하한 값 (HSV)\n
+        canny_threshold: Canny 엣지 검출 임계값 (min, max)\n
+        kernel_size: 커널 크기 (height, width)\n
+        dilate_iterations: canny 팽창 반복 횟수\n
+        erode_iterations: inrange mask 침식 반복 횟수\n
+    Returns:\n
+        filled_image: 길 영역 마스크
+    """
+    h, w = image.shape[:2]
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, inrange_lower, inrange_upper)
+    
+    canny = cv2.Canny(image, canny_threshold[0], canny_threshold[1])
+
+    kernel = np.ones(kernel_size, np.uint8)
+    dilated_canny = cv2.dilate(canny, kernel, iterations=dilate_iterations)
+    eroded_mask = cv2.erode(mask, kernel, iterations=erode_iterations)
+    # eroded_mask = mask
+
+    y_idx, x_idx = np.where(eroded_mask == 255)
+    random_index = np.random.randint(0, len(y_idx))
+    seed_point = (x_idx[random_index], y_idx[random_index])
+
+    ff_mask = np.zeros((h + 2, w + 2), np.uint8)
+    ff_mask[1:h+1, 1:w+1] = dilated_canny
+    filled_image = np.zeros((h, w), np.uint8)
+
+    cv2.floodFill(filled_image, ff_mask, seed_point, 255, 0, 0, cv2.FLOODFILL_FIXED_RANGE)
+
+    return filled_image
+
+
 if __name__ == '__main__':
     import os
     img_list = os.listdir('img')

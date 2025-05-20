@@ -1,28 +1,16 @@
-import urllib.request
-import cv2, numpy as np
+from RobokitRS import *
+from moveFunc import *
 import asyncio
-
-"""
-
-HTTP/1.1 200 OK
-Content-Type: multipart/x-mixed-replace;boundary=123456789000000000000987654321
-Transfer-Encoding: chunked
-Access-Control-Allow-Origin: *
-
-GET /stream HTTP/1.1
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
-Accept-Encoding: gzip, deflate
-Accept-Language: ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6,zh;q=0.5
-Cache-Control: max-age=0
-Connection: keep-alive
-Host: 192.168.4.1:81
-Upgrade-Insecure-Requests: 1
-User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36
-
-"""
+import cv2
+import numpy as np
+import logging
+import urllib.request
 
 
-# 현재 카메라에 비치는 화면을 이미지로 가져오는 함수
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 async def get_robo_image(frame: np.ndarray):
     url = 'http://192.168.4.1:81/stream'
     s = urllib.request.urlopen(url)
@@ -95,23 +83,62 @@ def get_load_region(image: np.ndarray, inrange_upper: tuple = (40, 255, 255), in
     return filled_image
 
 
-async def main():
-    q = asyncio.Queue()
-    # 카메라 스트림을 백그라운드에서 실행
-    camera_task = asyncio.create_task(get_robo_image(q))
+class Robo:
+    def __init__(self, port_name: str = "COM5", max_speed: int = 15, run_mode: str = "line"):
+        self.q = asyncio.Queue()
+        self.rs = RobokitRS.RobokitRS()
+        self.rs.port_open(port_name)
+        # self.rs.sonar_begin(13)
+
+        self.momentum = "left"
+        self.max_speed = max_speed
+        self.run_mode = run_mode
+        self.frame = np.zeros((240, 320, 3), np.uint8)
+        asyncio.create_task(get_robo_image(self.frame))
+        logger.info("Robo 초기화 완료")
+
+    async def move(self):
+        while True:
+            cv2.imshow("frame", self.frame)
+
+            if self.run_mode == "line":
+                await self.line_action()
+
+            await asyncio.sleep(0.01)
+            if cv2.waitKey(1) == 27:
+                break
     
-    print("start")
-    while True:
-        print("get")
-        img = await q.get()
-        cv2.imshow("test", img)
-        cv2.imshow("load", get_load_region(img))
+    async def line_action(self):
         
-        if cv2.waitKey(1) == 27:
-            break
-    
-    camera_task.cancel()
-    cv2.destroyAllWindows()
+        load_region = get_load_region(self.frame)
+        cv2.imshow("load", load_region)
+
+        x_idx, _ = np.where(load_region == 255)
+
+        if len(x_idx) == 0:
+            logger.info(f"load_region is empty. momentum: {self.momentum}")
+            if self.momentum == "left":
+                turn(self.rs, self.max_speed)
+            else:
+                turn(self.rs, self.max_speed * -1)
+            return
+
+        padding = 20
+
+        x_mean = x_idx.mean()
+
+        turn_speed = (160 - x_mean) / 160 * self.max_speed
+
+        logger.info(f"turn_speed: {turn_speed}\r")
+
+        if np.abs(turn_speed) < padding:
+            forward(self.rs, self.max_speed)
+            return
+
+        self.momentum = "right" if turn_speed > 0 else "left"
+        smooth_turn(self.rs, turn_speed)
+
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    robo = Robo()
+    asyncio.run(robo.move())
